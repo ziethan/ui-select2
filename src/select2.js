@@ -11,7 +11,7 @@ angular.module('ui.select2', []).value('uiSelect2Config', {}).directive('uiSelec
     angular.extend(options, uiSelect2Config);
   }
   return {
-    require: 'ngModel',
+    require: '?ngModel',
     compile: function (tElm, tAttrs) {
       var watch,
         repeatOption,
@@ -33,44 +33,6 @@ angular.module('ui.select2', []).value('uiSelect2Config', {}).directive('uiSelec
         // instance-specific options
         var opts = angular.extend({}, options, scope.$eval(attrs.uiSelect2));
 
-        /*
-        Convert from Select2 view-model to Angular view-model.
-        */
-        var convertToAngularModel = function(select2_data) {
-          var model;
-          if (opts.simple_tags) {
-            model = []
-            angular.forEach(select2_data, function(value, index) {
-              model.push(value.id)
-            })
-          } else {
-            model = select2_data
-          }
-          return model
-        }
-
-        /*
-        Convert from Angular view-model to Select2 view-model.
-        */
-        var convertToSelect2Model = function(angular_data) {
-          var model = []
-          if (!angular_data) {
-            return model;
-          }
-
-          if (opts.simple_tags) {
-            model = [];
-            angular.forEach(
-              angular_data,
-              function(value, index) {
-                model.push({'id': value, 'text': value});
-              })
-          } else {
-            model = angular_data;
-          }
-          return model
-        }
-
         if (isSelect) {
           // Use <select multiple> instead
           delete opts.multiple;
@@ -81,22 +43,18 @@ angular.module('ui.select2', []).value('uiSelect2Config', {}).directive('uiSelec
 
         if (controller) {
           // Watch the model for programmatic changes
-           scope.$watch(tAttrs.ngModel, function(current, old) {
-            if (!current) {
-              return
-            }
-            if (current == old) {
-              return
-            }
-            controller.$render()
-          }, true)
           controller.$render = function () {
             if (isSelect) {
               elm.select2('val', controller.$viewValue);
             } else {
-              if (opts.multiple) {
-                elm.select2(
-                  'data', convertToSelect2Model(controller.$viewValue));
+              if (isMultiple) {
+                if (!controller.$viewValue) {
+                  elm.select2('data', []);
+                } else if (angular.isArray(controller.$viewValue)) {
+                  elm.select2('data', controller.$viewValue);
+                } else {
+                  elm.select2('val', controller.$viewValue);
+                }
               } else {
                 if (angular.isObject(controller.$viewValue)) {
                   elm.select2('data', controller.$viewValue);
@@ -117,21 +75,21 @@ angular.module('ui.select2', []).value('uiSelect2Config', {}).directive('uiSelec
               $timeout(function () {
                 elm.select2('val', controller.$viewValue);
                 // Refresh angular to remove the superfluous option
-                elm.trigger('change');
+//                elm.trigger('change');
               });
             });
           }
 
           // Update valid and dirty statuses
           controller.$parsers.push(function (value) {
-            var div = elm.prev()
-            div
-              .toggleClass('ng-invalid', !controller.$valid)
-              .toggleClass('ng-valid', controller.$valid)
-              .toggleClass('ng-invalid-required', !controller.$valid)
-              .toggleClass('ng-valid-required', controller.$valid)
-              .toggleClass('ng-dirty', controller.$dirty)
-              .toggleClass('ng-pristine', controller.$pristine);
+            var div = elm.prev();
+            console.log(controller.$valid, controller.$dirty, controller.$pristine);
+            div.toggleClass('ng-invalid', !controller.$valid);
+            div.toggleClass('ng-valid', controller.$valid);
+            div.toggleClass('ng-invalid-required', !controller.$valid);
+            div.toggleClass('ng-valid-required', controller.$valid);
+            div.toggleClass('ng-dirty', controller.$dirty);
+            div.toggleClass('ng-pristine', controller.$pristine);
             return value;
           });
 
@@ -140,8 +98,7 @@ angular.module('ui.select2', []).value('uiSelect2Config', {}).directive('uiSelec
             elm.bind("change", function () {
               if (scope.$$phase) return;
               scope.$apply(function () {
-                controller.$setViewValue(
-                  convertToAngularModel(elm.select2('data')));
+                controller.$setViewValue(elm.select2('data'));
               });
             });
 
@@ -149,17 +106,13 @@ angular.module('ui.select2', []).value('uiSelect2Config', {}).directive('uiSelec
               var initSelection = opts.initSelection;
               opts.initSelection = function (element, callback) {
                 initSelection(element, function (value) {
-                  controller.$setViewValue(convertToAngularModel(value));
+                  controller.$setViewValue(value);
                   callback(value);
                 });
               };
             }
           }
         }
-
-        elm.bind("$destroy", function() {
-          elm.select2("destroy");
-        });
 
         attrs.$observe('disabled', function (value) {
           elm.select2('enable', !value);
@@ -186,8 +139,7 @@ angular.module('ui.select2', []).value('uiSelect2Config', {}).directive('uiSelec
 
           // Not sure if I should just check for !isSelect OR if I should check for 'tags' key
           if (!opts.initSelection && !isSelect)
-            controller.$setViewValue(
-              convertToAngularModel(elm.select2('data')));
+            controller.$setViewValue(elm.select2('data'));
         });
       };
     }
